@@ -1,11 +1,6 @@
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react' // or your framework plugin
+import react from '@vitejs/plugin-react'
 
 export default defineConfig({
-  plugins: [react()],
-  server: {
-    allowedHosts: [
-      'aloe-overhead-commuting.ngrok-free.dev'
-    ]
-  }
+  plugins: [react()]
 })
