@@ -62,9 +62,6 @@ export default function Reports() {
     label: t.name, value: Number(t.count),
   }));
 
-  const totalRevenue = revenueItems.reduce((s, r) => s + r.value, 0);
-  const totalBillings = totalRevenue + Number(data.outstandingBalance || 0);
-
   return (
     <div>
       <div className="topbar">
@@ -83,15 +80,13 @@ export default function Reports() {
       <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 260px))', marginBottom: 28 }}>
         <div className="stat-card accent">
           <div className="label">Outstanding balance</div>
-          <div className="value">{money(Math.max(0, data.outstandingBalance))}</div>
+          <div className="value">{money(data.outstandingBalance)}</div>
         </div>
         <div className="stat-card">
           <div className="label">Revenue collected ({months}mo)</div>
-          <div className="value">{money(totalRevenue)}</div>
-        </div>
-        <div className="stat-card">
-          <div className="label">Total billings ({months}mo)</div>
-          <div className="value">{money(totalBillings)}</div>
+          <div className="value">
+            {money(revenueItems.reduce((s, r) => s + r.value, 0))}
+          </div>
         </div>
       </div>
 

@@ -18,6 +18,8 @@ const settingsRoutes = require('./routes/settingsRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const auditLogRoutes = require('./routes/auditLogRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const portalRoutes = require('./routes/portalRoutes');
+const publicRoutes = require('./routes/publicRoutes');
 
 const app = express();
 
@@ -40,6 +42,8 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/portal', portalRoutes);
+app.use('/api/public', publicRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
@@ -47,6 +51,6 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 4000;
 
 app.listen(PORT, async () => {
-  console.log(`[server] Klinikly API running on http://localhost:${PORT}`);
+  console.log(`[server] White-Clover Dental Clinic API running on http://localhost:${PORT}`);
   await testConnection();
 });

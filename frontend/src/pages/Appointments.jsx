@@ -4,11 +4,7 @@ import Modal from '../components/Modal.jsx';
 import PatientPicker from '../components/PatientPicker.jsx';
 
 function todayStr() {
-  const d = new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return new Date().toISOString().slice(0, 10);
 }
 
 function formatTime(t) {
@@ -80,10 +76,7 @@ export default function Appointments() {
   function shiftDate(days) {
     const d = new Date(date + 'T00:00:00');
     d.setDate(d.getDate() + days);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    setDate(`${year}-${month}-${day}`);
+    setDate(d.toISOString().slice(0, 10));
   }
 
   return (

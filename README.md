@@ -1,4 +1,4 @@
-# Klinikly Clinic — Phase 1 + Phase 2 + Phase 3 + Phase 4
+# White-Clover Dental Clinic — Phase 1 through Phase 5 (Patient Portal), fully responsive
 
 A dental clinic management system, built on your existing `dental_clinic` MySQL
 schema.
@@ -7,8 +7,44 @@ schema.
 - **Phase 2: Core clinic modules** — Patients, Appointments, and an interactive Dental Chart.
 - **Phase 3: Clinical & billing** — Treatment Plans & Records, Invoices, and Payments.
 - **Phase 4: Admin & operations** — Staff & Roles management, Clinic Settings, Notifications, Audit Logs, and Reports.
+- **Phase 5: Patient portal** — a self-service login for patients to view their own appointments, treatment plans, dental chart, and invoices, plus request new appointments.
+- **Phase 6: Public website** — a marketing site at `/` for prospective patients, with a live inquiry form wired into the same staff notifications from Phase 4.
 
-This closes out the original roadmap — all four phases are now in place.
+The entire app — both the staff dashboard and the patient portal — is now
+responsive: usable on a phone, tablet, or desktop from the same codebase, no
+separate mobile app needed. See "Responsive design" below.
+
+Branded for **White-Clover Dental Clinic**, with a warm gold-and-ivory color
+palette sampled directly from the clinic's logo. See "Branding & theming"
+below if you ever want to adjust it.
+
+This goes beyond the original four-phase roadmap.
+
+## ⚠️ If you're upgrading from Phase 4
+
+This phase changes the database schema (adds a `patient_id` column to
+`users`). Run the migration before starting the backend:
+
+```bash
+mysql -u root -p dental_clinic < database/migrations/002_patient_portal.sql
+```
+
+(New installs don't need this — `dental_clinic_database.sql` already includes it.)
+
+## ⚠️ If you're upgrading from Phase 5
+
+Phase 6 doesn't change the schema, but it does rename the default placeholder
+clinic name. If your database still has the original seed data, run:
+
+```bash
+mysql -u root -p dental_clinic < database/migrations/003_rebrand_clinic_name.sql
+```
+
+Skip this if you've already renamed your clinic in **Clinic Settings** — the
+migration only touches the row if it's still the original placeholder.
+
+Also: **the staff dashboard moved from `/` to `/dashboard`** — `/` is now the
+public marketing site. If you had `/` bookmarked, update the bookmark.
 
 ## Stack
 
@@ -184,26 +220,190 @@ klinikly-clinic/
     ├── src/
     │   ├── api/client.js         # axios instance w/ auth header
     │   ├── context/AuthContext.jsx
-    │   ├── components/           # Sidebar, NotificationBell, Modal,
-    │   │                         # PatientPicker, DentalChart, TreatmentTab,
-    │   │                         # ProtectedRoute
+    │   ├── components/           # Sidebar, PortalSidebar, NotificationBell,
+    │   │                         # Modal, PatientPicker, DentalChart,
+    │   │                         # TreatmentTab, PortalAccessPanel,
+    │   │                         # ProtectedRoute (role-aware)
     │   ├── pages/                # Login, Dashboard, Patients, Appointments,
     │   │                         # Billing, Payments, StaffRoles,
     │   │                         # ClinicSettings, AuditLogs, Reports, etc.
+    │   │   └── portal/           # PortalDashboard, PortalAppointments,
+    │   │                         # PortalTreatmentPlans, PortalDentalChart,
+    │   │                         # PortalBilling, PortalInvoiceDetail,
+    │   │                         # PortalProfile
     │   └── styles/index.css
     └── .env.example
 ```
 
-## All four phases are now built
+## Phase 5: Patient Portal
 
-The original roadmap is complete. If you want to keep going, some natural
-next steps that weren't in the original scope:
+### How it works
 
-- Patient-facing portal (the `roles` table already has a `patient` role
-  ready for this) — self-service booking, viewing their own records/invoices.
-- SMS/email delivery for notifications (currently in-app only).
+Patients don't self-register. A staff member (admin or receptionist) enables
+portal access from a patient's profile page (**Patients → [patient] →
+Overview tab → "Enable portal access"**). This requires the patient to have
+an email on file, generates a one-time temporary password, and shows it once
+for staff to hand off to the patient — nothing is emailed automatically
+(there's no email/SMS integration yet).
+
+Once enabled, the patient logs in at the same login screen as staff. The app
+detects their role and routes them to `/portal` instead of the staff
+dashboard — they never see staff screens, and staff routes actively redirect
+patient accounts away (and vice versa).
+
+### What patients can do
+
+- View upcoming/past appointments and **request** a new one (goes in as
+  `pending`; front desk still confirms it — this is a request queue, not
+  self-booking).
+- View their treatment plans and itemized costs (read-only).
+- View their dental chart (read-only) — same FDI-numbered layout staff use.
+- View invoices, balances, and payment history (read-only).
+- Update their own contact info and emergency contact (name, email, and
+  birth date stay staff-managed for identity integrity).
+- View their medical history (read-only — edits still go through staff).
+- Get notified (via the same bell) when their appointment is confirmed,
+  cancelled, or marked complete.
+
+### Security notes
+
+- Every portal endpoint (`/api/portal/*`) is scoped by `req.user.patientId`
+  from the JWT — never by a URL parameter — so there's no way for one
+  patient's login to reach another patient's data by editing an ID in the
+  URL or API request.
+- A dedicated `requirePatient` middleware rejects staff tokens on portal
+  routes and patient tokens on staff routes, independent of the frontend's
+  own redirects.
+- Enabling portal access checks that the email isn't already in use by
+  another login (staff or patient) before creating the account.
+
+## Phase 6: Public Website
+
+A marketing site at `/` — the front door for prospective patients, meant to
+make the clinic look established and trustworthy before someone ever calls
+or walks in.
+
+### What's on it
+
+- A hero built around the actual clinic seal/logo rather than a generic
+  device mockup, plus a live trust strip pulling real numbers (active
+  patients, dentists on staff, completed appointments) straight from the
+  database — no invented stats.
+- A services overview and a "how a visit comes together" walkthrough that
+  honestly describes the request-then-confirm flow this system actually
+  uses (Phase 2's appointments), rather than promising instant self-service
+  booking it doesn't have.
+- A contact form that **feeds directly into Phase 4's notification system**
+  — a submission notifies every active admin/receptionist account, the same
+  way a new portal appointment request does. There's no separate inbox to
+  check.
+- Clinic contact info (address/phone/email) is pulled live from **Clinic
+  Settings** (Phase 4) via a new public endpoint — update it once in the app
+  and the public site reflects it immediately.
+- A `Patient Login` link that goes straight to the real login screen, and
+  adapts to "Go to Dashboard" / "Go to My Portal" automatically if you're
+  already signed in.
+
+### New public (unauthenticated) endpoints
+
+Everything else in this API requires a login — these three are deliberately
+open, since a marketing site needs to work before anyone has an account:
+
+- `GET /api/public/clinic-info` — clinic name, address, phone, email.
+- `GET /api/public/stats` — aggregate counts only (active patients, active
+  dentists, completed appointments). Never exposes individual patient data.
+- `POST /api/public/inquiry` — name, email/phone, and a message. Includes a
+  basic honeypot field (a hidden input real visitors never fill in, but
+  simple bots often do) to cut down on spam without needing a CAPTCHA
+  service.
+
+### Design notes
+
+The public site intentionally looks different from the staff/patient app —
+it pairs Cormorant Garamond (serif, for headlines) with Inter (the app's
+existing font, for everything else), evoking the engraved-medallion feel of
+the logo rather than reusing the dashboard's utilitarian UI chrome. It's a
+separate stylesheet (`frontend/src/styles/landing.css`), loaded only on this
+one page, so it doesn't affect the app's bundle size or styling anywhere
+else.
+
+## What's next
+
+Some natural next steps that weren't in the original scope:
+
+- SMS/email delivery for notifications and portal credentials (currently
+  in-app only — the temporary password has to be relayed to the patient
+  manually right now).
+- Patient self-registration with identity verification, if you want to skip
+  the "staff enables it" step.
 - Patient document uploads (see gap below).
 - Exportable PDF invoices/receipts.
+- SEO basics for the public site (meta description, Open Graph tags, a
+  sitemap) if you want it to rank in search rather than just be linked to
+  directly.
+- A proper CAPTCHA (e.g. hCaptcha/Turnstile) on the inquiry form if the
+  honeypot alone doesn't hold up against spam once the site is public.
+
+## Branding & theming
+
+- **Logo:** lives in `frontend/public/` in three sizes — `logo.png` (400px,
+  used in the login hero and its watermark), `logo-small.png` (120px, used
+  in the sidebar and mobile top bar), and `favicon.png` (64px). All three
+  were re-compressed from the original ~1.4MB upload down to roughly 60KB
+  combined, since the full-resolution file is unnecessarily heavy for a UI
+  icon shown at a few dozen pixels — this matters most on mobile.
+- **Color palette:** every color in `frontend/src/styles/index.css` was
+  sampled from the actual logo pixels and swapped in as CSS custom
+  properties at the top of the file (`:root { --teal: ...; --teal-deep:
+  ...; }` etc. — the variable names are a holdover from the previous teal
+  theme, but their values are now the gold/ivory palette). Change a value
+  there and it propagates everywhere; you don't need to hunt through
+  individual components.
+- **What stayed off-palette on purpose:** the dental chart and status badges
+  (tooth conditions, appointment/invoice statuses) intentionally keep a few
+  non-gold hues — blue, purple, red, muted green — because they exist to let
+  you visually tell 8–9 different categories apart at a glance. Forcing all
+  of those into shades of gold would make the chart harder to read, not more
+  on-brand. Structural chrome (sidebar, buttons, headers, links, active
+  states) is fully on-palette.
+- **To swap the logo or palette again later:** replace the three PNGs in
+  `frontend/public/` (keeping the same filenames avoids touching any code),
+  and/or edit the `:root` block in `index.css`.
+
+## Responsive design
+
+Every screen — staff dashboard and patient portal alike — now adapts across
+three breakpoints: desktop (>900px), tablet (~780px), and phone (≤480px).
+
+- **Navigation:** on screens ≤780px wide, the sidebar becomes a slide-in
+  drawer instead of a fixed column. A hamburger button in a fixed top bar
+  opens it; tapping a link, or tapping outside the drawer, closes it again.
+  Above 780px, it's back to a normal always-visible sidebar — nothing
+  changes for desktop use.
+- **Tables:** rather than squeezing columns until they're unreadable, tables
+  keep a sane minimum width and the panel around them scrolls horizontally
+  on narrow screens. You lose nothing — just swipe sideways to see the rest
+  of a wide table (e.g. the Staff list or Audit Logs).
+- **Forms & detail grids:** two-column layouts (patient forms, profile
+  fields, invoice summaries) collapse to a single column under ~560px so
+  labels and inputs aren't cramped.
+- **Dental chart:** tooth buttons shrink slightly on phones (34px → 26px)
+  and the chart scrolls horizontally as a fallback, so all 32 permanent
+  teeth stay reachable even on a small screen.
+- **Modals:** on phones ≤480px, modals become bottom sheets (anchored to the
+  bottom edge, rounded top corners only) rather than floating dialogs — a
+  more natural mobile pattern than a centered popup.
+- **Stat cards, tabs, date navigation:** all reflow or wrap instead of
+  overflowing the viewport.
+
+This required no new dependencies — it's all CSS media queries plus a small
+amount of React state for the mobile drawer (in `Sidebar.jsx` and
+`PortalSidebar.jsx`). Nothing about the API or data model changed.
+
+If you want to verify it yourself: open Chrome/Firefox DevTools, toggle
+device toolbar (Ctrl+Shift+M / Cmd+Shift+M), and try a few presets (iPhone
+SE for the smallest case, iPad for tablet). Or just resize the browser
+window — everything reflows live, no reload needed.
 
 ## Known gaps to fill later
 
@@ -221,6 +421,9 @@ next steps that weren't in the original scope:
 - Notifications are polled every 30s rather than pushed in real time
   (no websockets) — fine for a single-clinic deployment, but worth
   revisiting if you add multiple front-desk terminals watching live.
+- Portal temporary passwords are shown once in the staff UI with no
+  resend/copy-link mechanism — if staff loses it before relaying it, they'll
+  need to use "Reset password" to generate a new one.
 
 ## Notes
 

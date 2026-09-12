@@ -16,7 +16,7 @@ export default function Login() {
     setSubmitting(true);
     try {
       const user = await login(email, password);
-      navigate(user.role === 'patient' ? '/portal' : '/');
+      navigate(user.role === 'patient' ? '/portal' : '/dashboard');
     } catch (err) {
       setError(err.response?.data?.message || 'Could not sign in. Please try again.');
     } finally {
