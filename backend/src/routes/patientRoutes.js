@@ -2,6 +2,7 @@ const express = require('express');
 const {
   listPatients, getPatient, createPatient, updatePatient,
   updatePatientStatus, upsertMedicalHistory,
+  enablePortalAccess, resetPortalPassword, setPortalStatus,
 } = require('../controllers/patientController');
 const {
   getChart, updateToothStatus, addToothCondition,
@@ -32,6 +33,22 @@ router.post(
   '/:id/teeth/:toothId/conditions',
   requireRole('admin', 'dentist', 'assistant'),
   addToothCondition
+);
+
+router.post(
+  '/:id/portal/enable',
+  requireRole('admin', 'receptionist'),
+  enablePortalAccess
+);
+router.post(
+  '/:id/portal/reset-password',
+  requireRole('admin', 'receptionist'),
+  resetPortalPassword
+);
+router.patch(
+  '/:id/portal/status',
+  requireRole('admin', 'receptionist'),
+  setPortalStatus
 );
 
 router.use('/:id/treatment-plans', treatmentPlansForPatient);
