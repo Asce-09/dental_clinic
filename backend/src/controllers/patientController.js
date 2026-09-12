@@ -1,6 +1,12 @@
+const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 const { pool } = require('../config/db');
 const asyncHandler = require('../utils/asyncHandler');
 const { logAction } = require('../utils/auditLog');
+
+function generateTempPassword() {
+  return crypto.randomBytes(9).toString('base64').replace(/[+/=]/g, '').slice(0, 12);
+}
 
 const PATIENT_FIELDS = [
   'first_name', 'middle_name', 'last_name', 'suffix', 'birth_date', 'sex',
@@ -66,10 +72,16 @@ const getPatient = asyncHandler(async (req, res) => {
     [id]
   );
 
+  const [portalRows] = await pool.query(
+    'SELECT id, email, status, last_login_at FROM users WHERE patient_id = ?',
+    [id]
+  );
+
   res.json({
     ...patient,
     medicalHistory: medicalHistory || null,
     documentCount: docCount.count,
+    portalAccess: portalRows[0] || null,
   });
 });
 
@@ -204,6 +216,107 @@ const upsertMedicalHistory = asyncHandler(async (req, res) => {
   res.json({ message: 'Medical history saved.' });
 });
 
+// POST /api/patients/:id/portal/enable
+const enablePortalAccess = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const [[patient]] = await pool.query('SELECT * FROM patients WHERE id = ?', [id]);
+  if (!patient) {
+    return res.status(404).json({ message: 'Patient not found.' });
+  }
+  if (!patient.email) {
+    return res.status(400).json({
+      message: 'This patient needs an email address on file before you can enable portal access.',
+    });
+  }
+
+  const [existing] = await pool.query('SELECT id FROM users WHERE patient_id = ?', [id]);
+  if (existing.length) {
+    return res.status(409).json({ message: 'Portal access is already enabled for this patient.' });
+  }
+
+  const [emailInUse] = await pool.query('SELECT id FROM users WHERE email = ?', [patient.email]);
+  if (emailInUse.length) {
+    return res.status(409).json({
+      message: `A login already exists for ${patient.email}. Use a different email on the patient's record, or check if a staff account is using it.`,
+    });
+  }
+
+  const [[patientRole]] = await pool.query("SELECT id FROM roles WHERE name = 'patient' LIMIT 1");
+  if (!patientRole) {
+    return res.status(500).json({ message: 'No "patient" role found in the roles table.' });
+  }
+
+  const tempPassword = generateTempPassword();
+  const passwordHash = await bcrypt.hash(tempPassword, 12);
+
+  await pool.query(
+    `INSERT INTO users (role_id, patient_id, first_name, last_name, email, password_hash)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [patientRole.id, id, patient.first_name, patient.last_name, patient.email, passwordHash]
+  );
+
+  await logAction({
+    req, action: 'patient.portal_enabled', entityType: 'patient', entityId: id,
+    description: `Enabled portal access for patient #${id} (${patient.email})`,
+  });
+
+  res.status(201).json({
+    message: 'Portal access enabled.',
+    email: patient.email,
+    temporaryPassword: tempPassword,
+  });
+});
+
+// POST /api/patients/:id/portal/reset-password
+const resetPortalPassword = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const [rows] = await pool.query('SELECT id, email FROM users WHERE patient_id = ?', [id]);
+  const portalUser = rows[0];
+  if (!portalUser) {
+    return res.status(404).json({ message: 'This patient does not have portal access enabled.' });
+  }
+
+  const tempPassword = generateTempPassword();
+  const passwordHash = await bcrypt.hash(tempPassword, 12);
+  await pool.query('UPDATE users SET password_hash = ?, status = "active" WHERE id = ?', [
+    passwordHash, portalUser.id,
+  ]);
+
+  await logAction({
+    req, action: 'patient.portal_password_reset', entityType: 'patient', entityId: id,
+    description: `Reset portal password for patient #${id}`,
+  });
+
+  res.json({ message: 'Portal password reset.', email: portalUser.email, temporaryPassword: tempPassword });
+});
+
+// PATCH /api/patients/:id/portal/status  { status: 'active' | 'inactive' }
+const setPortalStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (!['active', 'inactive'].includes(status)) {
+    return res.status(400).json({ message: 'Invalid status.' });
+  }
+
+  const [rows] = await pool.query('SELECT id FROM users WHERE patient_id = ?', [id]);
+  if (!rows.length) {
+    return res.status(404).json({ message: 'This patient does not have portal access enabled.' });
+  }
+
+  await pool.query('UPDATE users SET status = ? WHERE id = ?', [status, rows[0].id]);
+
+  await logAction({
+    req, action: 'patient.portal_status_changed', entityType: 'patient', entityId: id,
+    description: `Set portal login status to "${status}" for patient #${id}`,
+  });
+
+  res.json({ message: 'Portal access status updated.' });
+});
+
 module.exports = {
   listPatients, getPatient, createPatient, updatePatient, updatePatientStatus, upsertMedicalHistory,
+  enablePortalAccess, resetPortalPassword, setPortalStatus,
 };
