@@ -145,6 +145,29 @@ const updateAppointmentStatus = asyncHandler(async (req, res) => {
   }
 
   await pool.query('UPDATE appointments SET status = ? WHERE id = ?', [status, id]);
+
+  const [apptRows] = await pool.query('SELECT patient_id, appointment_date, start_time FROM appointments WHERE id = ?', [id]);
+  const appt = apptRows[0];
+  if (appt) {
+    const [portalUsers] = await pool.query(
+      'SELECT id FROM users WHERE patient_id = ? AND status = "active"',
+      [appt.patient_id]
+    );
+    const STATUS_MESSAGES = {
+      confirmed: 'Your appointment has been confirmed.',
+      cancelled: 'Your appointment has been cancelled.',
+      completed: 'Your appointment is complete. Thanks for visiting!',
+    };
+    if (portalUsers[0] && STATUS_MESSAGES[status]) {
+      await notify({
+        userId: portalUsers[0].id,
+        type: 'appointment_status',
+        title: STATUS_MESSAGES[status],
+        message: `${appt.appointment_date} at ${appt.start_time}.`,
+      });
+    }
+  }
+
   res.json({ message: 'Appointment status updated.' });
 });
 
