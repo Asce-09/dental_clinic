@@ -9,6 +9,7 @@ function signToken(user) {
       id: user.id,
       roleId: user.role_id,
       roleName: user.role_name,
+      patientId: user.patient_id || null,
       email: user.email,
       firstName: user.first_name,
       lastName: user.last_name,
@@ -26,7 +27,7 @@ const login = asyncHandler(async (req, res) => {
   }
 
   const [rows] = await pool.query(
-    `SELECT u.id, u.role_id, u.first_name, u.last_name, u.email, u.password_hash,
+    `SELECT u.id, u.role_id, u.patient_id, u.first_name, u.last_name, u.email, u.password_hash,
             u.status, r.name AS role_name
      FROM users u
      JOIN roles r ON r.id = u.role_id
@@ -68,7 +69,7 @@ const login = asyncHandler(async (req, res) => {
 const me = asyncHandler(async (req, res) => {
   const [rows] = await pool.query(
     `SELECT u.id, u.first_name, u.last_name, u.email, u.phone, u.status,
-            u.last_login_at, r.name AS role_name
+            u.last_login_at, u.patient_id, r.name AS role_name
      FROM users u
      JOIN roles r ON r.id = u.role_id
      WHERE u.id = ?
