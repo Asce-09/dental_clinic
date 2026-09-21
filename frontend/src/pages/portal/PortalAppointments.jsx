@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import client from '../../api/client';
 import Modal from '../../components/Modal.jsx';
+import { todayStr } from '../../utils/date.js';
 
 function formatTime(t) {
   if (!t) return '';
@@ -8,10 +9,6 @@ function formatTime(t) {
   const hour = ((+h + 11) % 12) + 1;
   const ampm = +h < 12 ? 'AM' : 'PM';
   return `${hour}:${m} ${ampm}`;
-}
-
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
 }
 
 const EMPTY_FORM = { treatmentId: '', appointmentDate: todayStr(), startTime: '09:00', reason: '' };

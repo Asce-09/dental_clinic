@@ -1,6 +1,7 @@
 const { pool } = require('../config/db');
 const asyncHandler = require('../utils/asyncHandler');
 const { notify } = require('../utils/notify');
+const { resolveDentition } = require('../utils/dentition');
 
 // GET /api/portal/me
 const getMyProfile = asyncHandler(async (req, res) => {
@@ -144,14 +145,15 @@ const listMyTreatmentRecords = asyncHandler(async (req, res) => {
 // GET /api/portal/dental-chart — read-only
 const getMyDentalChart = asyncHandler(async (req, res) => {
   const patientId = req.user.patientId;
+  const { mode, autoMode, age, dentitions } = await resolveDentition(patientId);
 
   const [teeth] = await pool.query(
     `SELECT t.id, t.tooth_number, t.dentition, pt.status
      FROM teeth t
      LEFT JOIN patient_teeth pt ON pt.tooth_id = t.id AND pt.patient_id = ?
-     WHERE t.dentition = 'permanent'
+     WHERE t.dentition IN (?)
      ORDER BY t.id`,
-    [patientId]
+    [patientId, dentitions]
   );
 
   const [conditions] = await pool.query(
@@ -166,11 +168,16 @@ const getMyDentalChart = asyncHandler(async (req, res) => {
     conditionsByTooth[c.tooth_id].push(c);
   });
 
-  res.json(teeth.map((t) => ({
-    ...t,
-    status: t.status || 'healthy',
-    conditions: conditionsByTooth[t.id] || [],
-  })));
+  res.json({
+    dentition: mode,
+    autoDentition: autoMode,
+    age,
+    teeth: teeth.map((t) => ({
+      ...t,
+      status: t.status || 'healthy',
+      conditions: conditionsByTooth[t.id] || [],
+    })),
+  });
 });
 
 // GET /api/portal/invoices

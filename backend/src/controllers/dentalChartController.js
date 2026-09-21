@@ -1,20 +1,25 @@
 const { pool } = require('../config/db');
 const asyncHandler = require('../utils/asyncHandler');
+const { resolveDentition } = require('../utils/dentition');
 
 // GET /api/patients/:id/teeth
-// Returns all 32 permanent teeth with the patient's current status for each,
-// plus any recorded conditions per tooth.
+// Returns the teeth that fit the patient's age (baby teeth for young children,
+// baby + permanent while mixed, adult teeth otherwise) with the patient's
+// current status for each, plus any recorded conditions per tooth.
+// Optional ?dentition=primary|mixed|permanent lets staff override the age default.
+// Response: { dentition, autoDentition, age, teeth: [...] }
 const getChart = asyncHandler(async (req, res) => {
   const { id } = req.params;
+  const { mode, autoMode, age, dentitions } = await resolveDentition(id, req.query.dentition);
 
   const [teeth] = await pool.query(
     `SELECT t.id, t.tooth_number, t.dentition,
             pt.status, pt.notes AS status_notes, pt.updated_at
      FROM teeth t
      LEFT JOIN patient_teeth pt ON pt.tooth_id = t.id AND pt.patient_id = ?
-     WHERE t.dentition = 'permanent'
+     WHERE t.dentition IN (?)
      ORDER BY t.id`,
-    [id]
+    [id, dentitions]
   );
 
   const [conditions] = await pool.query(
@@ -39,7 +44,7 @@ const getChart = asyncHandler(async (req, res) => {
     conditions: conditionsByTooth[t.id] || [],
   }));
 
-  res.json(chart);
+  res.json({ dentition: mode, autoDentition: autoMode, age, teeth: chart });
 });
 
 // PUT /api/patients/:id/teeth/:toothId

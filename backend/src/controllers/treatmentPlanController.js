@@ -160,7 +160,7 @@ const addItem = asyncHandler(async (req, res) => {
 // PUT /api/treatment-plan-items/:itemId
 const updateItem = asyncHandler(async (req, res) => {
   const { itemId } = req.params;
-  const { description, quantity, unitPrice, status, notes } = req.body;
+  const { description, quantity, unitPrice, status, notes, toothId, treatmentId } = req.body;
 
   const [itemRows] = await pool.query(
     'SELECT treatment_plan_id FROM treatment_plan_items WHERE id = ?',
@@ -176,6 +176,8 @@ const updateItem = asyncHandler(async (req, res) => {
   if (unitPrice !== undefined) { sets.push('unit_price = ?'); params.push(unitPrice); }
   if (status !== undefined) { sets.push('status = ?'); params.push(status); }
   if (notes !== undefined) { sets.push('notes = ?'); params.push(notes); }
+  if (toothId !== undefined) { sets.push('tooth_id = ?'); params.push(toothId || null); }
+  if (treatmentId !== undefined) { sets.push('treatment_id = ?'); params.push(treatmentId || null); }
 
   if (sets.length) {
     params.push(itemId);

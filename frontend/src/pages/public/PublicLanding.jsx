@@ -2,9 +2,14 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import client from '../../api/client';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { todayStr } from '../../utils/date.js';
 import '../../styles/landing.css';
 
 const EMPTY_FORM = { name: '', email: '', phone: '', message: '', website: '' };
+const EMPTY_APPT_FORM = {
+  name: '', email: '', phone: '', preferredDate: '', preferredTime: '',
+  treatmentId: '', reason: '', website: '',
+};
 
 function scrollToId(id) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -14,13 +19,19 @@ export default function PublicLanding() {
   const { user } = useAuth();
   const [clinicInfo, setClinicInfo] = useState(null);
   const [stats, setStats] = useState(null);
+  const [treatments, setTreatments] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null); // { ok: bool, message: string }
 
+  const [apptForm, setApptForm] = useState(EMPTY_APPT_FORM);
+  const [apptSubmitting, setApptSubmitting] = useState(false);
+  const [apptResult, setApptResult] = useState(null);
+
   useEffect(() => {
-    client.get('/public/clinic-info').then((res) => setClinicInfo(res.data)).catch(() => {});
-    client.get('/public/stats').then((res) => setStats(res.data)).catch(() => {});
+    client.get('/public/clinic-info').then((res) => setClinicInfo(res.data)).catch(() => { });
+    client.get('/public/stats').then((res) => setStats(res.data)).catch(() => { });
+    client.get('/public/treatments').then((res) => setTreatments(res.data)).catch(() => { });
   }, []);
 
   const clinicName = clinicInfo?.clinic_name || 'White-Clover Dental Clinic';
@@ -40,11 +51,26 @@ export default function PublicLanding() {
     }
   }
 
+  async function handleApptSubmit(e) {
+    e.preventDefault();
+    setApptResult(null);
+    setApptSubmitting(true);
+    try {
+      const res = await client.post('/public/appointment-request', apptForm);
+      setApptResult({ ok: true, message: res.data.message });
+      setApptForm(EMPTY_APPT_FORM);
+    } catch (err) {
+      setApptResult({ ok: false, message: err.response?.data?.message || 'Something went wrong. Please try again.' });
+    } finally {
+      setApptSubmitting(false);
+    }
+  }
+
   const accountLink = !user
-    ? { to: '/login', label: 'Patient Login' }
+    ? { to: '/login', label: 'Login' }
     : user.role === 'patient'
-    ? { to: '/portal', label: 'Go to My Portal' }
-    : { to: '/dashboard', label: 'Go to Dashboard' };
+      ? { to: '/portal', label: 'Go to My Portal' }
+      : { to: '/dashboard', label: 'Go to Dashboard' };
 
   return (
     <div className="landing">
@@ -64,9 +90,9 @@ export default function PublicLanding() {
               <span>{accountLink.label}</span>
             </Link>
             <a
-              href="#contact"
+              href="#appointment"
               className="landing-btn landing-btn-primary"
-              onClick={(e) => { e.preventDefault(); scrollToId('contact'); }}
+              onClick={(e) => { e.preventDefault(); scrollToId('appointment'); }}
             >
               Request an Appointment
             </a>
@@ -84,9 +110,9 @@ export default function PublicLanding() {
           </p>
           <div className="hero-actions">
             <a
-              href="#contact"
+              href="#appointment"
               className="landing-btn landing-btn-primary"
-              onClick={(e) => { e.preventDefault(); scrollToId('contact'); }}
+              onClick={(e) => { e.preventDefault(); scrollToId('appointment'); }}
             >
               Request an Appointment
             </a>
@@ -165,7 +191,7 @@ export default function PublicLanding() {
           <div className="step">
             <div className="step-number">1</div>
             <h3>Reach out</h3>
-            <p>Send an inquiry below, or call the clinic to ask for a visit.</p>
+            <p>Request an appointment below, or call the clinic directly.</p>
           </div>
           <div className="step">
             <div className="step-number">2</div>
@@ -185,10 +211,127 @@ export default function PublicLanding() {
         </div>
       </section>
 
-      <section id="contact" className="section contact-section">
-        <div className="contact-grid">
-          <div className="contact-info">
-            <h3>Get in touch</h3>
+      <section id="appointment" className="section contact-section">
+        <div className="dual-form-grid">
+          <div className="dual-form-col">
+            <h3>Request an appointment</h3>
+            <p style={{ color: 'var(--ink-soft)', fontSize: 14, marginBottom: 20 }}>
+              Tell us your preferred date and time, and what you'd like to visit for. This
+              reserves nothing automatically — our front desk will call or email you to
+              confirm it.
+            </p>
+            {clinicInfo?.phone && (
+              <div className="contact-info-row">
+                <span className="contact-info-label">Prefer to call?</span>
+                <span className="contact-info-value">
+                  <a href={`tel:${clinicInfo.phone}`}>{clinicInfo.phone}</a>
+                </span>
+              </div>
+            )}
+
+            <form onSubmit={handleApptSubmit}>
+              <div className="landing-field">
+                <label htmlFor="appt-name">Name</label>
+                <input
+                  id="appt-name"
+                  value={apptForm.name}
+                  onChange={(e) => setApptForm({ ...apptForm, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="landing-field">
+                <label htmlFor="appt-email">Email</label>
+                <input
+                  id="appt-email"
+                  type="email"
+                  value={apptForm.email}
+                  onChange={(e) => setApptForm({ ...apptForm, email: e.target.value })}
+                />
+              </div>
+              <div className="landing-field">
+                <label htmlFor="appt-phone">Phone</label>
+                <input
+                  id="appt-phone"
+                  value={apptForm.phone}
+                  onChange={(e) => setApptForm({ ...apptForm, phone: e.target.value })}
+                  placeholder="At least one of email or phone"
+                />
+              </div>
+              <div className="landing-field-row">
+                <div className="landing-field">
+                  <label htmlFor="appt-date">Preferred date</label>
+                  <input
+                    id="appt-date"
+                    type="date"
+                    min={todayStr()}
+                    value={apptForm.preferredDate}
+                    onChange={(e) => setApptForm({ ...apptForm, preferredDate: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="landing-field">
+                  <label htmlFor="appt-time">Preferred time</label>
+                  <input
+                    id="appt-time"
+                    type="time"
+                    value={apptForm.preferredTime}
+                    onChange={(e) => setApptForm({ ...apptForm, preferredTime: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="landing-field">
+                <label htmlFor="appt-treatment">What's this for?</label>
+                <select
+                  id="appt-treatment"
+                  value={apptForm.treatmentId}
+                  onChange={(e) => setApptForm({ ...apptForm, treatmentId: e.target.value })}
+                >
+                  <option value="">Not sure / general checkup</option>
+                  {treatments.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="landing-field">
+                <label htmlFor="appt-reason">Anything else we should know?</label>
+                <textarea
+                  id="appt-reason"
+                  value={apptForm.reason}
+                  onChange={(e) => setApptForm({ ...apptForm, reason: e.target.value })}
+                  placeholder="Optional — symptoms, concerns, or scheduling notes."
+                />
+              </div>
+              {/* Honeypot — hidden from real visitors, often filled in by bots */}
+              <div className="landing-field honeypot-field" aria-hidden="true">
+                <label htmlFor="appt-website">Website</label>
+                <input
+                  id="appt-website"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={apptForm.website}
+                  onChange={(e) => setApptForm({ ...apptForm, website: e.target.value })}
+                />
+              </div>
+              <button className="landing-btn landing-btn-primary" type="submit" disabled={apptSubmitting} style={{ width: '100%' }}>
+                {apptSubmitting ? 'Sending…' : 'Request Appointment'}
+              </button>
+              {apptResult && (
+                <p className={`form-note ${apptResult.ok ? 'success' : 'error'}`}>{apptResult.message}</p>
+              )}
+            </form>
+
+            <p style={{ color: 'var(--ink-soft)', fontSize: 14, marginTop: 20 }}>
+              Already a patient? <Link to="/login" style={{ color: 'var(--ink)' }}>Log in to your portal</Link> to
+              request an appointment directly — it's tied to your existing records.
+            </p>
+          </div>
+
+          <div className="dual-form-col dual-form-col-divider" id="contact">
+            <h3>General questions</h3>
+            <p style={{ color: 'var(--ink-soft)', fontSize: 14, marginBottom: 20 }}>
+              Not ready to book yet? Send a general question — billing, insurance,
+              directions — and we'll get back to you directly.
+            </p>
             {clinicInfo?.address && (
               <div className="contact-info-row">
                 <span className="contact-info-label">Address</span>
@@ -216,13 +359,7 @@ export default function PublicLanding() {
                 Send us a message and we'll get back to you directly.
               </p>
             )}
-            <p style={{ color: 'var(--ink-soft)', fontSize: 14, marginTop: 20 }}>
-              Already a patient? <Link to="/login" style={{ color: 'var(--ink)' }}>Log in to your portal</Link> to
-              request an appointment directly.
-            </p>
-          </div>
 
-          <div>
             <form onSubmit={handleSubmit}>
               <div className="landing-field">
                 <label htmlFor="name">Name</label>
@@ -292,6 +429,7 @@ export default function PublicLanding() {
           <div className="landing-footer-links">
             <a href="#services" onClick={(e) => { e.preventDefault(); scrollToId('services'); }}>Services</a>
             <a href="#how-it-works" onClick={(e) => { e.preventDefault(); scrollToId('how-it-works'); }}>How It Works</a>
+            <a href="#appointment" onClick={(e) => { e.preventDefault(); scrollToId('appointment'); }}>Appointment</a>
             <a href="#contact" onClick={(e) => { e.preventDefault(); scrollToId('contact'); }}>Contact</a>
             <Link to="/login">Patient Login</Link>
           </div>

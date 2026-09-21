@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import client from '../../api/client';
+import { todayStr } from '../../utils/date.js';
 
 function money(n) {
   return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(n || 0);
@@ -38,7 +39,7 @@ export default function PortalDashboard() {
     return <div className="empty-state">Loading your dashboard…</div>;
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayStr();
   const upcoming = appointments
     .filter((a) => a.appointment_date >= today && !['cancelled', 'completed', 'no_show'].includes(a.status))
     .sort((a, b) => (a.appointment_date + a.start_time).localeCompare(b.appointment_date + b.start_time));

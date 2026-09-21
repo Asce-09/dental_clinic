@@ -13,6 +13,8 @@ import StaffRoles from './pages/StaffRoles.jsx';
 import ClinicSettings from './pages/ClinicSettings.jsx';
 import AuditLogs from './pages/AuditLogs.jsx';
 import Reports from './pages/Reports.jsx';
+import WebsiteInquiries from './pages/WebsiteInquiries.jsx';
+import AppointmentRequests from './pages/AppointmentRequests.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 
@@ -167,6 +169,26 @@ export default function App() {
           <ProtectedRoute>
             <AppLayout>
               <Reports />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/inquiries"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <WebsiteInquiries />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/appointment-requests"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <AppointmentRequests />
             </AppLayout>
           </ProtectedRoute>
         }

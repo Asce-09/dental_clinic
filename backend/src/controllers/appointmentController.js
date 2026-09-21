@@ -6,8 +6,9 @@ const APPT_SELECT = `
   SELECT a.id, a.patient_id, a.dentist_id, a.treatment_id,
          a.appointment_date, a.start_time, a.end_time, a.status, a.source,
          a.reason, a.notes, a.created_at,
+         p.patient_code AS patient_code,
          p.first_name AS patient_first_name, p.last_name AS patient_last_name,
-         p.phone AS patient_phone,
+         p.phone AS patient_phone, p.birth_date AS patient_birth_date,
          u.first_name AS dentist_first_name, u.last_name AS dentist_last_name,
          t.name AS treatment_name
   FROM appointments a

@@ -14,10 +14,33 @@ const PATIENT_FIELDS = [
   'emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relationship',
 ];
 
-// GET /api/patients?search=&status=&page=&limit=
+// GET /api/patients?search=&status=&sex=&ageGroup=&sort=&page=&limit=
+//   ageGroup: child (0-12) | teen (13-17) | adult (18-59) | senior (60+) | unknown (no birth date)
+//   sort:     newest (default) | oldest | name | code
+//   limit:    a number, or "all" to return every matching patient
+const AGE_SQL = 'TIMESTAMPDIFF(YEAR, birth_date, CURDATE())';
+const AGE_GROUP_WHERE = {
+  child: `(birth_date IS NOT NULL AND ${AGE_SQL} < 13)`,
+  teen: `(birth_date IS NOT NULL AND ${AGE_SQL} BETWEEN 13 AND 17)`,
+  adult: `(birth_date IS NOT NULL AND ${AGE_SQL} BETWEEN 18 AND 59)`,
+  senior: `(birth_date IS NOT NULL AND ${AGE_SQL} >= 60)`,
+  unknown: 'birth_date IS NULL',
+};
+const SORT_SQL = {
+  newest: 'created_at DESC, id DESC',
+  oldest: 'created_at ASC, id ASC',
+  name: 'last_name ASC, first_name ASC',
+  code: 'patient_code ASC',
+};
+
 const listPatients = asyncHandler(async (req, res) => {
-  const { search = '', status = '', page = 1, limit = 20 } = req.query;
-  const offset = (Math.max(1, Number(page)) - 1) * Number(limit);
+  const {
+    search = '', status = '', sex = '', ageGroup = '', sort = 'newest', page = 1, limit = 20,
+  } = req.query;
+
+  const listAll = String(limit).toLowerCase() === 'all';
+  const pageNum = Math.max(1, Number(page) || 1);
+  const limitNum = listAll ? null : Math.max(1, Number(limit) || 20);
 
   const where = [];
   const params = [];
@@ -31,24 +54,37 @@ const listPatients = asyncHandler(async (req, res) => {
     where.push('status = ?');
     params.push(status);
   }
+  if (sex) {
+    where.push('sex = ?');
+    params.push(sex);
+  }
+  if (ageGroup && AGE_GROUP_WHERE[ageGroup]) {
+    where.push(AGE_GROUP_WHERE[ageGroup]);
+  }
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  const orderSql = SORT_SQL[sort] || SORT_SQL.newest;
 
-  const [rows] = await pool.query(
-    `SELECT id, patient_code, first_name, last_name, birth_date, sex, phone, email, status, created_at
+  const selectSql = `SELECT id, patient_code, first_name, last_name, birth_date, sex, phone, email, status, created_at
      FROM patients
      ${whereSql}
-     ORDER BY created_at DESC
-     LIMIT ? OFFSET ?`,
-    [...params, Number(limit), offset]
-  );
+     ORDER BY ${orderSql}`;
+
+  const [rows] = listAll
+    ? await pool.query(selectSql, params)
+    : await pool.query(`${selectSql} LIMIT ? OFFSET ?`, [...params, limitNum, (pageNum - 1) * limitNum]);
 
   const [[{ count }]] = await pool.query(
     `SELECT COUNT(*) AS count FROM patients ${whereSql}`,
     params
   );
 
-  res.json({ data: rows, total: count, page: Number(page), limit: Number(limit) });
+  res.json({
+    data: rows,
+    total: count,
+    page: listAll ? 1 : pageNum,
+    limit: listAll ? 'all' : limitNum,
+  });
 });
 
 // GET /api/patients/:id

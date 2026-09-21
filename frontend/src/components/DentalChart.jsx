@@ -1,10 +1,6 @@
 import { useEffect, useState } from 'react';
 import client from '../api/client';
-
-const UPPER_RIGHT = ['18', '17', '16', '15', '14', '13', '12', '11'];
-const UPPER_LEFT = ['21', '22', '23', '24', '25', '26', '27', '28'];
-const LOWER_RIGHT = ['48', '47', '46', '45', '44', '43', '42', '41'];
-const LOWER_LEFT = ['31', '32', '33', '34', '35', '36', '37', '38'];
+import ToothGrid, { DENTITION_INFO } from './ToothGrid.jsx';
 
 const STATUS_OPTIONS = [
   'healthy', 'caries', 'filled', 'crowned', 'root_canal',
@@ -16,26 +12,28 @@ const SURFACE_OPTIONS = [
 ];
 
 export default function DentalChart({ patientId }) {
-  const [chart, setChart] = useState(null);
+  const [chart, setChart] = useState(null); // { dentition, autoDentition, age, teeth }
+  const [override, setOverride] = useState('auto');
   const [selectedNumber, setSelectedNumber] = useState(null);
   const [savingStatus, setSavingStatus] = useState(false);
   const [conditionForm, setConditionForm] = useState({ conditionName: '', surface: 'whole', notes: '' });
   const [savingCondition, setSavingCondition] = useState(false);
 
   function load() {
-    client.get(`/patients/${patientId}/teeth`).then((res) => setChart(res.data));
+    const params = override === 'auto' ? {} : { dentition: override };
+    client.get(`/patients/${patientId}/teeth`, { params }).then((res) => setChart(res.data));
   }
 
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patientId]);
+  }, [patientId, override]);
 
   if (!chart) {
     return <div className="empty-state">Loading dental chart…</div>;
   }
 
-  const byNumber = Object.fromEntries(chart.map((t) => [t.tooth_number, t]));
+  const byNumber = Object.fromEntries(chart.teeth.map((t) => [t.tooth_number, t]));
   const selected = selectedNumber ? byNumber[selectedNumber] : null;
 
   async function handleStatusChange(status) {
@@ -62,41 +60,35 @@ export default function DentalChart({ patientId }) {
     }
   }
 
-  function ToothRow({ numbers }) {
-    return (
-      <div className="tooth-row">
-        {numbers.map((num) => {
-          const tooth = byNumber[num];
-          const status = tooth?.status || 'healthy';
-          const isSelected = selectedNumber === num;
-          return (
-            <button
-              key={num}
-              className={`tooth tooth-${status}${isSelected ? ' tooth-selected' : ''}`}
-              onClick={() => setSelectedNumber(num)}
-              title={`Tooth ${num} — ${status.replace('_', ' ')}`}
-            >
-              {num}
-            </button>
-          );
-        })}
-      </div>
-    );
-  }
-
   return (
     <div className="dental-chart">
-      <div className="chart-grid">
-        <div className="chart-quadrants">
-          <ToothRow numbers={UPPER_RIGHT} />
-          <ToothRow numbers={UPPER_LEFT} />
+      <div className="chart-header">
+        <div>
+          <strong>{DENTITION_INFO[chart.dentition].label}</strong>
+          <div className="muted small">
+            {DENTITION_INFO[chart.dentition].detail}
+            {chart.age === null
+              ? ' · No birth date on file, showing the adult chart by default'
+              : ` · Patient is ${chart.age} year${chart.age === 1 ? '' : 's'} old`}
+          </div>
         </div>
-        <div className="chart-midline" />
-        <div className="chart-quadrants">
-          <ToothRow numbers={LOWER_RIGHT} />
-          <ToothRow numbers={LOWER_LEFT} />
+        <div className="field chart-override">
+          <label>Chart type</label>
+          <select value={override} onChange={(e) => setOverride(e.target.value)}>
+            <option value="auto">Auto (by age)</option>
+            <option value="primary">Primary (baby) teeth</option>
+            <option value="mixed">Mixed dentition</option>
+            <option value="permanent">Permanent (adult) teeth</option>
+          </select>
         </div>
       </div>
+
+      <ToothGrid
+        dentition={chart.dentition}
+        byNumber={byNumber}
+        selectedNumber={selectedNumber}
+        onSelect={setSelectedNumber}
+      />
 
       <div className="chart-legend">
         {STATUS_OPTIONS.map((s) => (

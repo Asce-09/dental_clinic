@@ -20,6 +20,8 @@ const auditLogRoutes = require('./routes/auditLogRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const portalRoutes = require('./routes/portalRoutes');
 const publicRoutes = require('./routes/publicRoutes');
+const inquiryRoutes = require('./routes/inquiryRoutes');
+const appointmentRequestRoutes = require('./routes/appointmentRequestRoutes');
 
 const app = express();
 
@@ -44,6 +46,8 @@ app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/portal', portalRoutes);
 app.use('/api/public', publicRoutes);
+app.use('/api/inquiries', inquiryRoutes);
+app.use('/api/appointment-requests', appointmentRequestRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

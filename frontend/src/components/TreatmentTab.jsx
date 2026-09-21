@@ -25,14 +25,18 @@ export default function TreatmentTab({ patientId }) {
 
   const [showAddPlan, setShowAddPlan] = useState(false);
   const [planForm, setPlanForm] = useState(EMPTY_PLAN_FORM);
-  const [planItems, setPlanItems] = useState([]);
-  const [newItem, setNewItem] = useState(EMPTY_ITEM_FORM);
   const [savingPlan, setSavingPlan] = useState(false);
   const [error, setError] = useState('');
 
   const [expandedPlanId, setExpandedPlanId] = useState(null);
   const [expandedPlanDetail, setExpandedPlanDetail] = useState(null);
+  const [newItem, setNewItem] = useState(EMPTY_ITEM_FORM);
+  const [quickFillId, setQuickFillId] = useState('');
   const [addingItemToPlan, setAddingItemToPlan] = useState(false);
+
+  const [editingItemId, setEditingItemId] = useState(null);
+  const [editItemForm, setEditItemForm] = useState(null);
+  const [savingItemEdit, setSavingItemEdit] = useState(false);
 
   const [showAddRecord, setShowAddRecord] = useState(false);
   const [recordForm, setRecordForm] = useState(EMPTY_RECORD_FORM);
@@ -51,20 +55,10 @@ export default function TreatmentTab({ patientId }) {
     client.get('/lookups/treatments').then((res) => setTreatments(res.data));
     client.get('/lookups/dentists').then((res) => setDentists(res.data));
     client.get(`/patients/${patientId}/teeth`).then((res) =>
-      setTeeth(res.data.map((t) => ({ id: t.id, tooth_number: t.tooth_number })))
+      setTeeth(res.data.teeth.map((t) => ({ id: t.id, tooth_number: t.tooth_number })))
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientId]);
-
-  function addRowToNewPlan() {
-    if (!newItem.description) return;
-    setPlanItems([...planItems, newItem]);
-    setNewItem(EMPTY_ITEM_FORM);
-  }
-
-  function removeRowFromNewPlan(idx) {
-    setPlanItems(planItems.filter((_, i) => i !== idx));
-  }
 
   async function handleCreatePlan(e) {
     e.preventDefault();
@@ -75,10 +69,9 @@ export default function TreatmentTab({ patientId }) {
     }
     setSavingPlan(true);
     try {
-      await client.post(`/patients/${patientId}/treatment-plans`, { ...planForm, items: planItems });
+      await client.post(`/patients/${patientId}/treatment-plans`, planForm);
       setShowAddPlan(false);
       setPlanForm(EMPTY_PLAN_FORM);
-      setPlanItems([]);
       loadPlans();
     } catch (err) {
       setError(err.response?.data?.message || 'Could not create treatment plan.');
@@ -91,34 +84,84 @@ export default function TreatmentTab({ patientId }) {
     if (expandedPlanId === planId) {
       setExpandedPlanId(null);
       setExpandedPlanDetail(null);
+      setEditingItemId(null);
       return;
     }
     setExpandedPlanId(planId);
+    setEditingItemId(null);
+    setNewItem(EMPTY_ITEM_FORM);
+    setQuickFillId('');
     const res = await client.get(`/treatment-plans/${planId}`);
     setExpandedPlanDetail(res.data);
+  }
+
+  async function refreshExpandedPlan(planId) {
+    const res = await client.get(`/treatment-plans/${planId}`);
+    setExpandedPlanDetail(res.data);
+    loadPlans();
   }
 
   async function handlePlanStatusChange(planId, status) {
     await client.patch(`/treatment-plans/${planId}/status`, { status });
-    loadPlans();
-    if (expandedPlanId === planId) {
-      const res = await client.get(`/treatment-plans/${planId}`);
-      setExpandedPlanDetail(res.data);
-    }
+    refreshExpandedPlan(planId);
   }
 
   async function handleItemStatusChange(itemId, status, planId) {
     await client.put(`/treatment-plan-items/${itemId}`, { status });
-    const res = await client.get(`/treatment-plans/${planId}`);
-    setExpandedPlanDetail(res.data);
-    loadPlans();
+    refreshExpandedPlan(planId);
   }
 
   async function handleDeleteItem(itemId, planId) {
+    if (!window.confirm('Remove this item from the plan?')) return;
     await client.delete(`/treatment-plan-items/${itemId}`);
-    const res = await client.get(`/treatment-plans/${planId}`);
-    setExpandedPlanDetail(res.data);
-    loadPlans();
+    refreshExpandedPlan(planId);
+  }
+
+  function startEditItem(item) {
+    setEditingItemId(item.id);
+    setEditItemForm({
+      description: item.description,
+      toothId: item.tooth_id || '',
+      quantity: item.quantity,
+      unitPrice: item.unit_price,
+      status: item.status,
+    });
+  }
+
+  function cancelEditItem() {
+    setEditingItemId(null);
+    setEditItemForm(null);
+  }
+
+  async function handleSaveItemEdit(itemId, planId) {
+    setSavingItemEdit(true);
+    try {
+      await client.put(`/treatment-plan-items/${itemId}`, {
+        description: editItemForm.description,
+        toothId: editItemForm.toothId || null,
+        quantity: editItemForm.quantity,
+        unitPrice: editItemForm.unitPrice,
+        status: editItemForm.status,
+      });
+      setEditingItemId(null);
+      setEditItemForm(null);
+      refreshExpandedPlan(planId);
+    } finally {
+      setSavingItemEdit(false);
+    }
+  }
+
+  function handleQuickFill(treatmentId) {
+    setQuickFillId(treatmentId);
+    const t = treatments.find((tr) => String(tr.id) === treatmentId);
+    if (t) {
+      setNewItem({
+        ...newItem,
+        treatmentId: t.id,
+        description: t.name,
+        unitPrice: t.default_price,
+      });
+    }
   }
 
   async function handleAddItemToExistingPlan(e, planId) {
@@ -128,9 +171,8 @@ export default function TreatmentTab({ patientId }) {
     try {
       await client.post(`/treatment-plans/${planId}/items`, newItem);
       setNewItem(EMPTY_ITEM_FORM);
-      const res = await client.get(`/treatment-plans/${planId}`);
-      setExpandedPlanDetail(res.data);
-      loadPlans();
+      setQuickFillId('');
+      refreshExpandedPlan(planId);
     } finally {
       setAddingItemToPlan(false);
     }
@@ -157,7 +199,6 @@ export default function TreatmentTab({ patientId }) {
           className="btn btn-primary btn-sm"
           onClick={() => {
             setPlanForm(EMPTY_PLAN_FORM);
-            setPlanItems([]);
             setShowAddPlan(true);
           }}
         >
@@ -210,69 +251,156 @@ export default function TreatmentTab({ patientId }) {
                   </thead>
                   <tbody>
                     {expandedPlanDetail.items.map((item) => (
-                      <tr key={item.id}>
-                        <td>{item.description}</td>
-                        <td>{item.tooth_number || '—'}</td>
-                        <td>{item.quantity}</td>
-                        <td>{money(item.unit_price)}</td>
-                        <td>
-                          <select
-                            value={item.status}
-                            onChange={(e) => handleItemStatusChange(item.id, e.target.value, plan.id)}
-                          >
-                            {ITEM_STATUSES.map((s) => (
-                              <option key={s} value={s}>{s.replace('_', ' ')}</option>
-                            ))}
-                          </select>
-                        </td>
-                        <td>
-                          <button
-                            className="btn btn-text-danger btn-sm"
-                            onClick={() => handleDeleteItem(item.id, plan.id)}
-                          >
-                            Remove
-                          </button>
-                        </td>
-                      </tr>
+                      editingItemId === item.id ? (
+                        <tr key={item.id} className="item-row-editing">
+                          <td>
+                            <input
+                              value={editItemForm.description}
+                              onChange={(e) => setEditItemForm({ ...editItemForm, description: e.target.value })}
+                            />
+                          </td>
+                          <td>
+                            <select
+                              value={editItemForm.toothId}
+                              onChange={(e) => setEditItemForm({ ...editItemForm, toothId: e.target.value })}
+                            >
+                              <option value="">—</option>
+                              {teeth.map((t) => (
+                                <option key={t.id} value={t.id}>{t.tooth_number}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              type="number" min="1" step="1"
+                              value={editItemForm.quantity}
+                              onChange={(e) => setEditItemForm({ ...editItemForm, quantity: e.target.value })}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number" min="0" step="0.01"
+                              value={editItemForm.unitPrice}
+                              onChange={(e) => setEditItemForm({ ...editItemForm, unitPrice: e.target.value })}
+                            />
+                          </td>
+                          <td>
+                            <select
+                              value={editItemForm.status}
+                              onChange={(e) => setEditItemForm({ ...editItemForm, status: e.target.value })}
+                            >
+                              {ITEM_STATUSES.map((s) => (
+                                <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="actions-cell">
+                            <button
+                              className="btn btn-primary btn-sm"
+                              onClick={() => handleSaveItemEdit(item.id, plan.id)}
+                              disabled={savingItemEdit}
+                            >
+                              {savingItemEdit ? 'Saving…' : 'Save'}
+                            </button>
+                            <button className="btn btn-secondary btn-sm" onClick={cancelEditItem}>
+                              Cancel
+                            </button>
+                          </td>
+                        </tr>
+                      ) : (
+                        <tr key={item.id}>
+                          <td>{item.description}</td>
+                          <td>{item.tooth_number || '—'}</td>
+                          <td>{item.quantity}</td>
+                          <td>{money(item.unit_price)}</td>
+                          <td>
+                            <select
+                              value={item.status}
+                              onChange={(e) => handleItemStatusChange(item.id, e.target.value, plan.id)}
+                            >
+                              {ITEM_STATUSES.map((s) => (
+                                <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="actions-cell">
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => startEditItem(item)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn btn-text-danger btn-sm"
+                              onClick={() => handleDeleteItem(item.id, plan.id)}
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      )
                     ))}
+
+                    <tr className="item-row-add">
+                      <td>
+                        <input
+                          placeholder="Description"
+                          value={newItem.description}
+                          onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
+                        />
+                      </td>
+                      <td>
+                        <select
+                          value={newItem.toothId}
+                          onChange={(e) => setNewItem({ ...newItem, toothId: e.target.value })}
+                        >
+                          <option value="">—</option>
+                          {teeth.map((t) => (
+                            <option key={t.id} value={t.id}>{t.tooth_number}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <input
+                          type="number" min="1" step="1"
+                          value={newItem.quantity}
+                          onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={newItem.unitPrice}
+                          onChange={(e) => setNewItem({ ...newItem, unitPrice: e.target.value })}
+                        />
+                      </td>
+                      <td className="muted small">New items start as "planned"</td>
+                      <td>
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={(e) => handleAddItemToExistingPlan(e, plan.id)}
+                          disabled={addingItemToPlan || !newItem.description}
+                        >
+                          {addingItemToPlan ? 'Adding…' : 'Add item'}
+                        </button>
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
 
-                <form className="item-add-row" onSubmit={(e) => handleAddItemToExistingPlan(e, plan.id)}>
-                  <input
-                    placeholder="Description"
-                    value={newItem.description}
-                    onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
-                  />
+                <div className="quick-fill-row">
+                  <label htmlFor="quick-fill">Fill from service catalog (optional)</label>
                   <select
-                    value={newItem.toothId}
-                    onChange={(e) => setNewItem({ ...newItem, toothId: e.target.value })}
+                    id="quick-fill"
+                    value={quickFillId}
+                    onChange={(e) => handleQuickFill(e.target.value)}
                   >
-                    <option value="">Tooth</option>
-                    {teeth.map((t) => (
-                      <option key={t.id} value={t.id}>{t.tooth_number}</option>
+                    <option value="">Choose a service to pre-fill description &amp; price…</option>
+                    {treatments.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name} — {money(t.default_price)}</option>
                     ))}
                   </select>
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    placeholder="Qty"
-                    value={newItem.quantity}
-                    onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="Unit price"
-                    value={newItem.unitPrice}
-                    onChange={(e) => setNewItem({ ...newItem, unitPrice: e.target.value })}
-                  />
-                  <button className="btn btn-secondary btn-sm" type="submit" disabled={addingItemToPlan}>
-                    Add item
-                  </button>
-                </form>
+                </div>
               </div>
             )}
           </div>
@@ -315,7 +443,7 @@ export default function TreatmentTab({ patientId }) {
       </div>
 
       {showAddPlan && (
-        <Modal title="New treatment plan" onClose={() => setShowAddPlan(false)} width={640}>
+        <Modal title="New treatment plan" onClose={() => setShowAddPlan(false)} width={520}>
           {error && <div className="error-banner">{error}</div>}
           <form onSubmit={handleCreatePlan}>
             <div className="field">
@@ -330,78 +458,10 @@ export default function TreatmentTab({ patientId }) {
               <label>Notes</label>
               <input value={planForm.notes} onChange={(e) => setPlanForm({ ...planForm, notes: e.target.value })} />
             </div>
-
-            <h5>Line items</h5>
-            {planItems.length > 0 && (
-              <table className="mini-table">
-                <thead>
-                  <tr><th>Description</th><th>Qty</th><th>Unit price</th><th></th></tr>
-                </thead>
-                <tbody>
-                  {planItems.map((it, idx) => (
-                    <tr key={idx}>
-                      <td>{it.description}</td>
-                      <td>{it.quantity}</td>
-                      <td>{money(it.unitPrice)}</td>
-                      <td>
-                        <button type="button" className="btn btn-text-danger btn-sm" onClick={() => removeRowFromNewPlan(idx)}>
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-
-            <div className="item-add-row">
-              <input
-                placeholder="Description"
-                value={newItem.description}
-                onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
-              />
-              <select
-                value={newItem.treatmentId}
-                onChange={(e) => {
-                  const t = treatments.find((tr) => String(tr.id) === e.target.value);
-                  setNewItem({
-                    ...newItem,
-                    treatmentId: e.target.value,
-                    description: newItem.description || t?.name || '',
-                    unitPrice: t ? t.default_price : newItem.unitPrice,
-                  });
-                }}
-              >
-                <option value="">Treatment</option>
-                {treatments.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-              <select
-                value={newItem.toothId}
-                onChange={(e) => setNewItem({ ...newItem, toothId: e.target.value })}
-              >
-                <option value="">Tooth</option>
-                {teeth.map((t) => (
-                  <option key={t.id} value={t.id}>{t.tooth_number}</option>
-                ))}
-              </select>
-              <input
-                type="number" min="1" step="1" placeholder="Qty"
-                value={newItem.quantity}
-                onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
-              />
-              <input
-                type="number" min="0" step="0.01" placeholder="Unit price"
-                value={newItem.unitPrice}
-                onChange={(e) => setNewItem({ ...newItem, unitPrice: e.target.value })}
-              />
-              <button type="button" className="btn btn-secondary btn-sm" onClick={addRowToNewPlan}>
-                Add row
-              </button>
-            </div>
-
-            <button className="btn btn-primary" type="submit" disabled={savingPlan} style={{ marginTop: 16 }}>
+            <p className="muted small" style={{ marginBottom: 16 }}>
+              You'll add line items (treatments, teeth, pricing) on the next screen, once the plan exists.
+            </p>
+            <button className="btn btn-primary" type="submit" disabled={savingPlan}>
               {savingPlan ? 'Saving…' : 'Create plan'}
             </button>
           </form>

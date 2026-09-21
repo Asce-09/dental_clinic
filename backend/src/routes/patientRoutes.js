@@ -7,11 +7,17 @@ const {
 const {
   getChart, updateToothStatus, addToothCondition,
 } = require('../controllers/dentalChartController');
+const {
+  listDocuments, uploadDocument, downloadDocument, deleteDocument,
+} = require('../controllers/patientDocumentController');
 const { patientNestedRouter: treatmentPlansForPatient } = require('./treatmentPlanRoutes');
 const treatmentRecordsForPatient = require('./treatmentRecordRoutes');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { upload } = require('../middleware/upload');
 
 const router = express.Router();
+
+const DOCUMENT_STAFF = ['admin', 'dentist', 'assistant', 'receptionist'];
 
 router.use(requireAuth);
 
@@ -50,6 +56,16 @@ router.patch(
   requireRole('admin', 'receptionist'),
   setPortalStatus
 );
+
+router.get('/:id/documents', requireRole(...DOCUMENT_STAFF), listDocuments);
+router.post(
+  '/:id/documents',
+  requireRole(...DOCUMENT_STAFF),
+  upload.single('file'),
+  uploadDocument
+);
+router.get('/:id/documents/:docId/download', requireRole(...DOCUMENT_STAFF), downloadDocument);
+router.delete('/:id/documents/:docId', requireRole(...DOCUMENT_STAFF), deleteDocument);
 
 router.use('/:id/treatment-plans', treatmentPlansForPatient);
 router.use('/:id/treatment-records', treatmentRecordsForPatient);
