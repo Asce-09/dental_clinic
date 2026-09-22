@@ -1,0 +1,20 @@
+# Netlify picks this file up automatically from the build output.
+# If you deploy elsewhere (Vercel, Nginx, Apache, etc.), see vercel.json /
+# README-PWA-DEPLOY.md for the equivalent rules — the goal is the same
+# everywhere: index.html, sw.js and the manifest must never be served stale,
+# or fixes like the install-prompt patch silently never reach real visitors.
+
+/index.html
+  Cache-Control: no-cache
+
+/sw.js
+  Cache-Control: no-cache
+
+/manifest.webmanifest
+  Cache-Control: no-cache
+  Content-Type: application/manifest+json
+
+# Vite's own JS/CSS bundles are content-hashed (filename changes when the
+# content does), so these are safe to cache aggressively and forever.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

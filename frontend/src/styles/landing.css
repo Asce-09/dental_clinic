@@ -135,9 +135,46 @@
   border-color: var(--ink);
 }
 
-@media (max-width: 480px) {
-  .landing-nav-actions .landing-btn span {
+/* Buttons carry a full label and a short one; phones show the short one so the
+   text is never hidden (previously the label was hidden and only an empty box showed). */
+.landing-btn .label-short {
+  display: none;
+}
+
+@media (max-width: 560px) {
+  .landing-nav-inner {
+    gap: 10px;
+  }
+
+  .landing-brand {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .landing-brand span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 17px;
+  }
+
+  .landing-nav-actions {
+    flex-shrink: 0;
+    gap: 8px;
+  }
+
+  .landing-nav-actions .landing-btn {
+    padding: 8px 14px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .landing-btn .label-full {
     display: none;
+  }
+
+  .landing-btn .label-short {
+    display: inline;
   }
 }
 

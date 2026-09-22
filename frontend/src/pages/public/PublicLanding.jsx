@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import client from '../../api/client';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { todayStr } from '../../utils/date.js';
+import InstallAppPrompt from '../../components/InstallAppPrompt.jsx';
 import '../../styles/landing.css';
 
 const EMPTY_FORM = { name: '', email: '', phone: '', message: '', website: '' };
@@ -29,9 +30,9 @@ export default function PublicLanding() {
   const [apptResult, setApptResult] = useState(null);
 
   useEffect(() => {
-    client.get('/public/clinic-info').then((res) => setClinicInfo(res.data)).catch(() => { });
-    client.get('/public/stats').then((res) => setStats(res.data)).catch(() => { });
-    client.get('/public/treatments').then((res) => setTreatments(res.data)).catch(() => { });
+    client.get('/public/clinic-info').then((res) => setClinicInfo(res.data)).catch(() => {});
+    client.get('/public/stats').then((res) => setStats(res.data)).catch(() => {});
+    client.get('/public/treatments').then((res) => setTreatments(res.data)).catch(() => {});
   }, []);
 
   const clinicName = clinicInfo?.clinic_name || 'White-Clover Dental Clinic';
@@ -67,13 +68,14 @@ export default function PublicLanding() {
   }
 
   const accountLink = !user
-    ? { to: '/login', label: 'Login' }
+    ? { to: '/login', label: 'Patient Login', short: 'Login' }
     : user.role === 'patient'
-      ? { to: '/portal', label: 'Go to My Portal' }
-      : { to: '/dashboard', label: 'Go to Dashboard' };
+    ? { to: '/portal', label: 'Go to My Portal', short: 'My Portal' }
+    : { to: '/dashboard', label: 'Go to Dashboard', short: 'Dashboard' };
 
   return (
     <div className="landing">
+      <InstallAppPrompt />
       <nav className="landing-nav">
         <div className="landing-nav-inner">
           <a href="#top" className="landing-brand">
@@ -87,14 +89,16 @@ export default function PublicLanding() {
           </div>
           <div className="landing-nav-actions">
             <Link to={accountLink.to} className="landing-btn landing-btn-ghost">
-              <span>{accountLink.label}</span>
+              <span className="label-full">{accountLink.label}</span>
+              <span className="label-short">{accountLink.short}</span>
             </Link>
             <a
               href="#appointment"
               className="landing-btn landing-btn-primary"
               onClick={(e) => { e.preventDefault(); scrollToId('appointment'); }}
             >
-              Request an Appointment
+              <span className="label-full">Request an Appointment</span>
+              <span className="label-short">Book</span>
             </a>
           </div>
         </div>

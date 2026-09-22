@@ -2,8 +2,46 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!--
+      PWA install-prompt capture — must be the very first script in <head>.
+      Chrome can fire `beforeinstallprompt` before the React bundle finishes
+      loading and mounting (especially on a fast/cached reload, or on phones
+      where JS execution lags behind paint). If nothing is listening yet,
+      the event is lost for that whole page load and no install UI ever
+      shows. This script runs synchronously, before anything else, so it
+      never misses the event — the React app then just reads the captured
+      event off `window` whenever it mounts.
+    -->
+    <script>
+      window.__wcDeferredInstallPrompt = null;
+      window.__wcJustInstalled = false;
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        window.__wcDeferredInstallPrompt = e;
+        window.dispatchEvent(new CustomEvent('wc-install-prompt-ready'));
+      });
+      window.addEventListener('appinstalled', function () {
+        window.__wcDeferredInstallPrompt = null;
+        window.__wcJustInstalled = true;
+        window.dispatchEvent(new CustomEvent('wc-app-installed'));
+      });
+    </script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#3d2c14" />
+    <meta name="description" content="Manage appointments, patients, and treatment plans for White-Clover Dental Clinic." />
+
+    <!-- PWA: lets the app be installed to a home screen on Android/iOS/desktop -->
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!-- iOS doesn't read the manifest for "Add to Home Screen" styling, so it needs these separately -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="White-Clover" />
+
     <title>White-Clover Dental Clinic</title>
   </head>
   <body>
