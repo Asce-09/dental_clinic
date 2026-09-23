@@ -21,7 +21,10 @@ function errorHandler(err, req, res, next) {
   }
 
   const status = err.status || 500;
-  const message = status === 500 ? 'Something went wrong on our end.' : err.message;
+  // err.exposeMessage lets a handler deliberately surface a specific,
+  // pre-written 500 message (e.g. "your database needs a migration") without
+  // opening the door to leaking raw internal error text on every 500.
+  const message = status === 500 && !err.exposeMessage ? 'Something went wrong on our end.' : err.message;
 
   res.status(status).json({ message });
 }

@@ -20,6 +20,7 @@ export default function AppointmentRequests() {
   const [openId, setOpenId] = useState(null);
   const [working, setWorking] = useState(null); // id currently being updated
   const [resultById, setResultById] = useState({}); // { [id]: message string }
+  const [errorById, setErrorById] = useState({}); // { [id]: error message string }
 
   function load() {
     setLoading(true);
@@ -44,12 +45,21 @@ export default function AppointmentRequests() {
     }
 
     setWorking(request.id);
+    setErrorById((prev) => ({ ...prev, [request.id]: null }));
     try {
       const res = await client.patch(`/appointment-requests/${request.id}/status`, { status: newStatus });
       if (res.data.patientId) {
         setResultById((prev) => ({ ...prev, [request.id]: res.data.message }));
       }
       load();
+    } catch (err) {
+      // Surface the real failure instead of silently snapping the dropdown
+      // back to its old value with no explanation — that's exactly what was
+      // happening before this fix.
+      const message =
+        err.response?.data?.message ||
+        'Could not update this request. Check your connection and try again.';
+      setErrorById((prev) => ({ ...prev, [request.id]: message }));
     } finally {
       setWorking(null);
     }
@@ -142,6 +152,10 @@ export default function AppointmentRequests() {
 
                 {resultById[r.id] && (
                   <div className="success-banner" style={{ marginTop: 14 }}>{resultById[r.id]}</div>
+                )}
+
+                {errorById[r.id] && (
+                  <div className="error-banner" style={{ marginTop: 14 }}>{errorById[r.id]}</div>
                 )}
 
                 {r.linked_patient_id ? (

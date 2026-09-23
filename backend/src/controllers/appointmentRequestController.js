@@ -183,6 +183,22 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
     });
   } catch (err) {
     await conn.rollback();
+    // These two error codes are exactly what MySQL throws when this
+    // endpoint's newer columns/enum value (added by migration
+    // 006_auto_resolve_appointment_requests.sql) don't exist yet — i.e. the
+    // database hasn't been migrated to match this version of the app. Flag
+    // that specifically rather than the generic 500, since "something went
+    // wrong" gives the admin nothing to act on.
+    if (err.code === 'ER_BAD_FIELD_ERROR' || err.code === 'WARN_DATA_TRUNCATED' || err.code === 'ER_TRUNCATED_WRONG_VALUE_FOR_FIELD') {
+      const schemaError = new Error(
+        'This database is missing a recent update needed to resolve requests ' +
+        '(migration 006_auto_resolve_appointment_requests.sql). Ask whoever manages ' +
+        'the database to run the pending migrations, then try again.'
+      );
+      schemaError.status = 500;
+      schemaError.exposeMessage = true;
+      throw schemaError;
+    }
     throw err;
   } finally {
     conn.release();
